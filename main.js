@@ -470,9 +470,9 @@ function updateUniforms() {
 	zMinMirrorSurface.focussingType = focussingType;
 	zMaxMirrorSurface.focussingType = focussingType;
 
+	let selfConjugateZPlane1 = raytracingScene.sceneObjects[selfConjugateZPlane1Index];
+	let selfConjugateZPlane2 = raytracingScene.sceneObjects[selfConjugateZPlane2Index];
 	if(showSelfConjugatePlanes) {
-		let selfConjugateZPlane1 = raytracingScene.sceneObjects[selfConjugateZPlane1Index];
-		let selfConjugateZPlane2 = raytracingScene.sceneObjects[selfConjugateZPlane2Index];
 		let selfConjugateZPlane1Rectangle = raytracingScene.rectangleShapes[selfConjugateZPlane1.shapeIndex];
 		let selfConjugateZPlane2Rectangle = raytracingScene.rectangleShapes[selfConjugateZPlane2.shapeIndex];
 
@@ -501,6 +501,10 @@ function updateUniforms() {
 			selfConjugateZPlane1.visible = false;
 			selfConjugateZPlane2.visible = false;
 		}
+	} else {
+		// self-conjugate planes don't exist; hide them
+		selfConjugateZPlane1.visible = false;
+		selfConjugateZPlane2.visible = false;
 	}
 	
 	// // are we in VR mode?
