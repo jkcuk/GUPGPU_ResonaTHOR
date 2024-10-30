@@ -114,7 +114,8 @@ let xMinMirrorOpticalPower = 0;
 let xMaxMirrorOpticalPower = 0;
 let zMinMirrorOpticalPower = 0;
 let zMaxMirrorOpticalPower = 0;
-let yMinStripe = -0.51;
+let stripeWidth = -0.01;
+let stripeProtrusion = 0.001;
 let xMinMirrorIndex, xMaxMirrorIndex, zMinMirrorIndex, zMaxMirrorIndex, selfConjugateZPlane1Index, selfConjugateZPlane2Index;
 let xMinStripeIndex, xMaxStripeIndex, zMinStripeIndex, zMaxStripeIndex;
 let focussingType = 0;
@@ -239,8 +240,8 @@ function initRaytracingScene() {
 		true,	// visible
 		CONST.RECTANGLE_SHAPE,	// shapeType
 		raytracingScene.addRectangleShape( new RectangleShape(
-			new THREE.Vector3(xMin, yMin, zMin),	// corner
-			new THREE.Vector3(0, yMinStripe-yMin, 0),	// span vector 1
+			new THREE.Vector3(xMin+stripeProtrusion, -0.5*stripeWidth, zMin),	// corner
+			new THREE.Vector3(0, stripeWidth, 0),	// span vector 1
 			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
 			Util.xHat	// normalised normal, pointing "outwards"
 		)),	// shapeIndex
@@ -273,8 +274,8 @@ function initRaytracingScene() {
 		true,	// visible
 		CONST.RECTANGLE_SHAPE,	// shapeType
 		raytracingScene.addRectangleShape( new RectangleShape(
-			new THREE.Vector3(xMax, yMin, zMin),	// corner
-			new THREE.Vector3(0, yMinStripe-yMin, 0),	// span vector 1
+			new THREE.Vector3(xMax-stripeProtrusion, -0.5*stripeWidth, zMin),	// corner
+			new THREE.Vector3(0, stripeWidth, 0),	// span vector 1
 			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
 			Util.xHat	// normalised normal, pointing "outwards"
 		)),	// shapeIndex
@@ -307,9 +308,9 @@ function initRaytracingScene() {
 		true,	// visible
 		CONST.RECTANGLE_SHAPE,	// shapeType
 		raytracingScene.addRectangleShape( new RectangleShape(
-			new THREE.Vector3(xMin, yMin, zMin),	// corner
+			new THREE.Vector3(xMin, -0.5*stripeWidth, zMin+stripeProtrusion),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMinStripe-yMin, 0),	// span vector 2
+			new THREE.Vector3(0, stripeWidth, 0),	// span vector 2
 			Util.zHat	// normalised normal, pointing "outwards"
 		)),	// shapeIndex
 		CONST.COLOUR_SURFACE,	// surfaceType
@@ -341,9 +342,9 @@ function initRaytracingScene() {
 		true,	// visible
 		CONST.RECTANGLE_SHAPE,	// shapeType
 		raytracingScene.addRectangleShape( new RectangleShape(
-			new THREE.Vector3(xMin, yMin, zMax),	// corner
+			new THREE.Vector3(xMin, -0.5*stripeWidth, zMax-stripeProtrusion),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMinStripe-yMin, 0),	// span vector 2
+			new THREE.Vector3(0, stripeWidth, 0),	// span vector 2
 			Util.zHat	// normalised normal, pointing "outwards"
 		)),	// shapeIndex
 		CONST.COLOUR_SURFACE,	// surfaceType
@@ -476,30 +477,67 @@ function updateUniforms() {
 		let selfConjugateZPlane1Rectangle = raytracingScene.rectangleShapes[selfConjugateZPlane1.shapeIndex];
 		let selfConjugateZPlane2Rectangle = raytracingScene.rectangleShapes[selfConjugateZPlane2.shapeIndex];
 
-		let f1 = 1/zMinMirrorOpticalPower;
-		let f2 = 1/zMaxMirrorOpticalPower;
 		let L = zMax - zMin;
-		// discriminant for calculation of o1
-		let discriminant = calculateDiscriminantForSCPs(f1, f2, L);
-		let denominator = 2*(f1+f2-L);
-		// console.log("d="+discriminant);
-		if(discriminant >= 0) {
-			let sqrtDiscriminant = Math.sqrt(discriminant);
-			// self-conjugate planes exist; show them
+		let f1 = 1/zMinMirrorOpticalPower;	// might be infinity, if opt. power = 0
+		let f2 = 1/zMaxMirrorOpticalPower;	// might be infinity, if opt. power = 0
+		let o11;	// will hold first solution for o1
+		let o12;	// will hold second solutuion for o1
+		let unstable = false;	// will be true if resonator is unstable (and therefore has self-conjugate planes), false otherwise
+
+		if((zMinMirrorOpticalPower == 0) && (zMaxMirrorOpticalPower == 0)) {
+			// on edge of stability, so don't set unstable to true
+			// console.log("plane-plane resonator; no SC planes");
+		} else if((zMinMirrorOpticalPower == 0) && (zMaxMirrorOpticalPower != 0)) {
+			let discriminant = L*(L-2*f2);
+			if(discriminant >= 0) {
+				unstable = true;
+				let sqrtDiscriminant = Math.sqrt(discriminant);
+				o11 = -sqrtDiscriminant;
+				o12 = +sqrtDiscriminant;
+			}
+			// console.log("Mirror 1 planar; discriminant="+discriminant);
+		} else if((zMaxMirrorOpticalPower == 0) && (zMinMirrorOpticalPower != 0)) {
+			let discriminant = L*(L-2*f1);
+			if(discriminant >= 0) {
+				unstable = true;
+				let sqrtDiscriminant = Math.sqrt(discriminant);
+				o11 = L - sqrtDiscriminant;
+				o12 = L + sqrtDiscriminant;
+			}
+			// console.log("Mirror 2 planar; discriminant="+discriminant);
+		} else {
+			// discriminant for calculation of o1
+			let discriminant = calculateDiscriminantForSCPs(f1, f2, L);
+			// console.log("d="+discriminant);
+			if(discriminant >= 0) {
+				// self-conjugate planes exist; show them
+				unstable = true;
+
+				let denominator = 2*(f1+f2-L);
+				if(denominator == 0.0) {
+					o11 = 1e6;
+					o12 = f1;
+				} else {
+					let sqrtDiscriminant = Math.sqrt(discriminant);
+					o11 = (L*(2*f2-L)-sqrtDiscriminant)/denominator;
+					o12 = (L*(2*f2-L)+sqrtDiscriminant)/denominator;
+				}
+			}
+			// console.log("General case; discriminant="+discriminant);
+		}
+
+		if(unstable) {
+			// self-conjugate planes exist
 			selfConjugateZPlane1.visible = true;
 			selfConjugateZPlane2.visible = true;
-			if(denominator == 0.0) {
-				selfConjugateZPlane1Rectangle.corner.z = zMin + f1;
-				selfConjugateZPlane2Rectangle.corner.z = zMin + 1e6;
-			} else {
-				selfConjugateZPlane1Rectangle.corner.z = zMin + (L*(2*f2-L)-sqrtDiscriminant)/denominator;
-				selfConjugateZPlane2Rectangle.corner.z = zMin + (L*(2*f2-L)+sqrtDiscriminant)/denominator;
-			}
-			// console.log("z12="+selfConjugateZPlane1Rectangle.corner.z+", "+selfConjugateZPlane2Rectangle.corner.z);
+			selfConjugateZPlane1Rectangle.corner.z = zMin + o11;
+			selfConjugateZPlane2Rectangle.corner.z = zMin + o12;
+			// console.log("o<sub>1,(1,2)</sub> = "+o11+", "+o12);
 		} else {
 			// self-conjugate planes don't exist; hide them
 			selfConjugateZPlane1.visible = false;
 			selfConjugateZPlane2.visible = false;
+			// console.log("No SC planes");
 		}
 	} else {
 		// self-conjugate planes don't exist; hide them
@@ -516,6 +554,36 @@ function updateUniforms() {
 	// }
 
 	GUIMesh.position.y = deltaY - 1;
+
+	// shift the xMin mirror
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMinMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	
+	// shift the xMax mirror
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMaxMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	
+	// shift the zMin mirror
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMinMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	
+	// shift the zMax mirror
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMaxMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+
+	// shift the stripes
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
+
+	// shift the self-conjugate planes
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane1Index].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane2Index].shapeIndex].corner.y = yMin + deltaY;
+	
+
+
+
 
 	// let t = 1e-3*Date.now();
 	// raytracingSphere.uniforms.cylinderMantleShapes.value[0].nDirection = new THREE.Vector3( Math.cos(t), 0, Math.sin(t) );
