@@ -18,6 +18,23 @@ class CylinderMantleShape {
 		new THREE.Vector3(0, 1, 0),	// phi0
 		new THREE.Vector3(0, 0, 1)	// phi90
 	);
+
+	static getCylinderMantleShape(
+		centre,
+		radius,
+		length,
+		axis
+	) {
+		let phi0 = Util.getANormalTo(axis);
+		return new CylinderMantleShape(
+			centre,
+			radius,
+			length,
+			axis,
+			phi0,
+			Util.crossProduct(axis, phi0)
+		);
+	}
 	
 	constructor(
 		centre,

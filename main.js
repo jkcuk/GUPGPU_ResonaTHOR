@@ -41,10 +41,10 @@ import { RaytracingScene } from './raytracing/RaytracingScene.js';
 import { RaytracingSphere } from './raytracing/RaytracingSphere.js';
 
 // this works fine both locally and when deployed on github
-const fragmentShaderCodeFile = await fetch("./fragmentShader.glsl");
+const fragmentShaderCodeFile = await fetch("./raytracing/fragmentShader.glsl");
 const fragmentShaderCode = await fragmentShaderCodeFile.text();
 
-const vertexShaderCodeFile = await fetch("./vertexShader.glsl");
+const vertexShaderCodeFile = await fetch("./raytracing/vertexShader.glsl");
 const vertexShaderCode = await vertexShaderCodeFile.text();
 
 let appName = 'GUPGPU resonaTHOR';
@@ -87,7 +87,7 @@ let info;
 // the menu
 let gui;
 let GUIParams;
-let autofocusControl, focusDistanceControl, baseYControl, backgroundControl, vrControlsVisibleControl, focussingTypeControl, showSelfConjugatePlanesControl;
+let autofocusControl, focusDistanceControl, baseYControl, backgroundControl, vrControlsVisibleControl, focussingTypeControl, showSelfConjugatePlanesControl, showSphereControl;
 
 let GUIMesh;
 // let showGUIMesh;
@@ -118,6 +118,7 @@ let stripeWidth = -0.01;
 let stripeProtrusion = 0.001;
 let xMinMirrorIndex, xMaxMirrorIndex, zMinMirrorIndex, zMaxMirrorIndex, selfConjugateZPlane1Index, selfConjugateZPlane2Index;
 let xMinStripeIndex, xMaxStripeIndex, zMinStripeIndex, zMaxStripeIndex;
+let sphereIndex;
 let focussingType = 0;
 let reflectionLossDB = -10;
 let showSelfConjugatePlanes = false;
@@ -213,19 +214,24 @@ function render() {
 function initRaytracingScene() {
 	raytracingScene = new RaytracingScene();
 
-	let redStripeSurfaceIndex = raytracingScene.addColourSurface( ColourSurface.red );
+	let redSurfaceID = raytracingScene.createColourSurfaceID( 
+		Util.red,	// colourFactor
+		false	// semitransparent 
+	);
+	let sphereSurfaceID = raytracingScene.createColourSurfaceID(
+		Util.yellow,	// colourFactor
+		false	// semitransparent
+	);
+	// raytracingScene.addColourSurface( ColourSurface.red );
 
 	xMinMirrorIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, yMin, zMin),	// corner
 			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 1
 			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
-			Util.xHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.THIN_FOCUSSING_SURFACE,	// surfaceType
-		raytracingScene.addThinFocussingSurface( new ThinFocussingSurface(
+		),	// shapeID
+		raytracingScene.createThinFocussingSurfaceID(
 			new THREE.Vector3(xMin, 0.5*(yMin+yMax), 0.5*(zMin+zMax)),	// principalPoint
 			xMinMirrorOpticalPower,	// opticalPower
 			CONST.SPHERICAL_FOCUSSING_TYPE,	// focussing type
@@ -233,33 +239,27 @@ function initRaytracingScene() {
 			true,	// reflective
 			CONST.IDEAL_REFRACTION_TYPE,	// refraction type
 			CONST.ONE_SURFACE_COLOUR_FACTOR	// colourFactor
-		))	// surfaceIndex
+		)	// surfaceID
 	));
 
 	xMinStripeIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin+stripeProtrusion, -0.5*stripeWidth, zMin),	// corner
 			new THREE.Vector3(0, stripeWidth, 0),	// span vector 1
-			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
-			Util.xHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.COLOUR_SURFACE,	// surfaceType
-		redStripeSurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, 0, zMax-zMin)	// span vector 2
+		),	// shapeID
+		redSurfaceID	// surfaceID
 	));
 
 	xMaxMirrorIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMax, yMin, zMin),	// corner
 			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 1
-			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
-			Util.xHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.THIN_FOCUSSING_SURFACE,	// surfaceType
-		raytracingScene.addThinFocussingSurface( new ThinFocussingSurface(
+			new THREE.Vector3(0, 0, zMax-zMin)	// span vector 2
+		),	// shapeID
+		raytracingScene.createThinFocussingSurfaceID(
 			new THREE.Vector3(xMax, 0.5*(yMin+yMax), 0.5*(zMin+zMax)),	// principalPoint
 			xMaxMirrorOpticalPower,	// opticalPower
 			CONST.SPHERICAL_FOCUSSING_TYPE,	// focussing type
@@ -267,33 +267,27 @@ function initRaytracingScene() {
 			true,	// reflective
 			CONST.IDEAL_REFRACTION_TYPE,	// refraction type
 			CONST.ONE_SURFACE_COLOUR_FACTOR	// colourFactor
-		))	// surfaceIndex
+		)	// surfaceID
 	));
 
 	xMaxStripeIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMax-stripeProtrusion, -0.5*stripeWidth, zMin),	// corner
 			new THREE.Vector3(0, stripeWidth, 0),	// span vector 1
-			new THREE.Vector3(0, 0, zMax-zMin),	// span vector 2
-			Util.xHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.COLOUR_SURFACE,	// surfaceType
-		redStripeSurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, 0, zMax-zMin)	// span vector 2
+		),	// shapeID
+		redSurfaceID	// surfaceID
 	));
 
 	zMinMirrorIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, yMin, zMin),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.THIN_FOCUSSING_SURFACE,	// surfaceType
-		raytracingScene.addThinFocussingSurface( new ThinFocussingSurface(
+			new THREE.Vector3(0, yMax-yMin, 0)	// span vector 2
+		),	// shapeID
+		raytracingScene.createThinFocussingSurfaceID(
 			new THREE.Vector3(0.5*(xMin+xMax), 0.5*(yMin+yMax), zMin),	// principalPoint
 			zMinMirrorOpticalPower,	// opticalPower
 			CONST.SPHERICAL_FOCUSSING_TYPE,	// focussing type
@@ -301,33 +295,27 @@ function initRaytracingScene() {
 			true,	// reflective
 			CONST.IDEAL_REFRACTION_TYPE,	// refraction type
 			CONST.ONE_SURFACE_COLOUR_FACTOR	// colourFactor
-		))	// surfaceIndex
+		)	// surfaceID
 	));
 
 	zMinStripeIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, -0.5*stripeWidth, zMin+stripeProtrusion),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, stripeWidth, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.COLOUR_SURFACE,	// surfaceType
-		redStripeSurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, stripeWidth, 0)	// span vector 2
+		),	// shapeIndex
+		redSurfaceID	// surfaceID
 	));
 
 	zMaxMirrorIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, yMin, zMax),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.THIN_FOCUSSING_SURFACE,	// surfaceType
-		raytracingScene.addThinFocussingSurface( new ThinFocussingSurface(
+			new THREE.Vector3(0, yMax-yMin, 0)	// span vector 2
+		),	// shapeID
+		raytracingScene.createThinFocussingSurfaceID(
 			new THREE.Vector3(0.5*(xMin+xMax), 0.5*(yMin+yMax), zMax),	// principalPoint
 			zMaxMirrorOpticalPower,	// opticalPower
 			CONST.SPHERICAL_FOCUSSING_TYPE,	// focussing type
@@ -335,68 +323,60 @@ function initRaytracingScene() {
 			true,	// reflective
 			CONST.IDEAL_REFRACTION_TYPE,	// refraction type
 			CONST.ONE_SURFACE_COLOUR_FACTOR	// colourFactor
-		))	// surfaceIndex
+		)	// surfaceID
 	));
 
 	zMaxStripeIndex = raytracingScene.addSceneObject(new SceneObject(
 		true,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, -0.5*stripeWidth, zMax-stripeProtrusion),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, stripeWidth, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.COLOUR_SURFACE,	// surfaceType
-		redStripeSurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, stripeWidth, 0)	// span vector 2
+		),	// shapeID
+		redSurfaceID	// surfaceID
 	));
 
-	let selfConjugatePlane1SurfaceIndex = raytracingScene.addCheckerboardSurface( new CheckerboardSurface( 
+	let selfConjugatePlane1SurfaceID = raytracingScene.createCheckerboardSurfaceID( 
 		.1, .1, // widths
 		new THREE.Vector4(1, 0.6, 0.6, 1), Util.white,	// colour factors
 		true, true	// semitransparencies
-	) );
-	let selfConjugatePlane2SurfaceIndex = raytracingScene.addCheckerboardSurface( new CheckerboardSurface( 
+	);
+	let selfConjugatePlane2SurfaceID = raytracingScene.createCheckerboardSurfaceID( 
 		.1, .1, // widths
 		new THREE.Vector4(.6, 0.6, 1, 1), Util.white,	// colour factors
 		true, true	// semitransparencies
-	) );
+	);
 
 	selfConjugateZPlane1Index = raytracingScene.addSceneObject(new SceneObject(
 		showSelfConjugatePlanes,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, yMin, zMax),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.CHECKERBOARD_SURFACE,	// CONST.COLOUR_SURFACE,	// surfaceType
-		selfConjugatePlane1SurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, yMax-yMin, 0)	// span vector 2
+		),	// shapeIndex
+		selfConjugatePlane1SurfaceID	// surfaceID
 	));
 
 	selfConjugateZPlane2Index = raytracingScene.addSceneObject(new SceneObject(
 		showSelfConjugatePlanes,	// visible
-		CONST.RECTANGLE_SHAPE,	// shapeType
-		raytracingScene.addRectangleShape( new RectangleShape(
+		raytracingScene.createRectangleShapeID(
 			new THREE.Vector3(xMin, yMin, zMax),	// corner
 			new THREE.Vector3(xMax-xMin, 0, 0),	// span vector 1
-			new THREE.Vector3(0, yMax-yMin, 0),	// span vector 2
-			Util.zHat	// normalised normal, pointing "outwards"
-		)),	// shapeIndex
-		CONST.CHECKERBOARD_SURFACE,	// surfaceType
-		selfConjugatePlane2SurfaceIndex	// surfaceIndex
+			new THREE.Vector3(0, yMax-yMin, 0)	// span vector 2
+		),	// shapeIndex
+		selfConjugatePlane2SurfaceID	// surfaceID
 	));
 
-	console.log( 
-		raytracingScene.noOfSceneObjects + " scene object(s),\n" +
-		raytracingScene.noOfRectangleShapes + " rectangle(s),\n" +
-		raytracingScene.noOfSphereShapes + " sphere(s),\n" +
-		raytracingScene.noOfCylinderMantleShapes + " cylinder(s),\n" +
-		raytracingScene.noOfColourSurfaces + " colour surface(s),\n" +
-		raytracingScene.noOfThinFocussingSurfaces + " thin-lens surface(s),\n" +
-		raytracingScene.noOfCheckerboardSurfaces + " checkerboard surface(s)"
-	);
+	sphereIndex = raytracingScene.addSceneObject(new SceneObject(
+		true,	// visible
+		raytracingScene.createSphereShapeID(
+			new THREE.Vector3(0, 0, 0),	// centre
+			0.01	// radius
+		),
+		sphereSurfaceID	// surfaceID
+	));
+
+	console.log( raytracingScene.getSceneSummary() );
 }
 
 function createUniforms() {
@@ -450,10 +430,10 @@ function createUniforms() {
 
 function updateUniforms() {
 
-	let xMinMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMinMirrorIndex].surfaceIndex];
-	let xMaxMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMaxMirrorIndex].surfaceIndex];
-	let zMinMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMinMirrorIndex].surfaceIndex];
-	let zMaxMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMaxMirrorIndex].surfaceIndex];
+	let xMinMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMinMirrorIndex].surfaceID.index];
+	let xMaxMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMaxMirrorIndex].surfaceID.index];
+	let zMinMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMinMirrorIndex].surfaceID.index];
+	let zMaxMirrorSurface = raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMaxMirrorIndex].surfaceID.index];
 
 	let reflectionCoefficient = 1-Math.pow(10, 0.1*reflectionLossDB);
 	xMinMirrorSurface.colourFactor = Util.coefficient2colourFactor(reflectionCoefficient);
@@ -556,30 +536,30 @@ function updateUniforms() {
 	GUIMesh.position.y = deltaY - 1;
 
 	// shift the xMin mirror
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
-	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMinMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinMirrorIndex].shapeID.index].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMinMirrorIndex].surfaceID.index].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
 	
 	// shift the xMax mirror
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
-	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMaxMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxMirrorIndex].shapeID.index].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[xMaxMirrorIndex].surfaceID.index].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
 	
 	// shift the zMin mirror
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
-	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMinMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinMirrorIndex].shapeID.index].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMinMirrorIndex].surfaceID.index].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
 	
 	// shift the zMax mirror
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxMirrorIndex].shapeIndex].corner.y = yMin + deltaY;
-	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMaxMirrorIndex].surfaceIndex].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxMirrorIndex].shapeID.index].corner.y = yMin + deltaY;
+	raytracingScene.thinFocussingSurfaces[raytracingScene.sceneObjects[zMaxMirrorIndex].surfaceID.index].principalPoint.y = 0.5*(yMin+yMax) + deltaY;
 
 	// shift the stripes
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxStripeIndex].shapeIndex].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMinStripeIndex].shapeID.index].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[xMaxStripeIndex].shapeID.index].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMinStripeIndex].shapeID.index].corner.y = -0.5*stripeWidth + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[zMaxStripeIndex].shapeID.index].corner.y = -0.5*stripeWidth + deltaY;
 
 	// shift the self-conjugate planes
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane1Index].shapeIndex].corner.y = yMin + deltaY;
-	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane2Index].shapeIndex].corner.y = yMin + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane1Index].shapeID.index].corner.y = yMin + deltaY;
+	raytracingScene.rectangleShapes[raytracingScene.sceneObjects[selfConjugateZPlane2Index].shapeID.index].corner.y = yMin + deltaY;
 	
 
 
@@ -751,6 +731,14 @@ function createGUI() {
 			showSelfConjugatePlanes = !showSelfConjugatePlanes;
 			showSelfConjugatePlanesControl.name( showSelfConjugatePlanes2String() );
 		},
+		sphereX: raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.x,
+		sphereY: raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.y,
+		sphereZ: raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.z,
+		sphereR: raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].radius,
+		showSphere: function() {
+			raytracingScene.sceneObjects[sphereIndex].visible = !raytracingScene.sceneObjects[sphereIndex].visible;
+			showSphereControl.name( showSphere2String() );
+		},
 	}
 
 	gui.add( GUIParams, 'maxTraceLevel', 0, 100, 1 ).name( 'Max. trace level' ).onChange( (r) => {raytracingSphere.uniforms.maxTraceLevel.value = r; } );
@@ -766,6 +754,12 @@ function createGUI() {
 	gui.add( GUIParams, 'zMaxMirrorOpticalPower', -10, 10, 0.001 ).name( "OP<sub><i>z</i>,max</sub>" ).onChange( (o) => { zMaxMirrorOpticalPower = o; } );
 	focussingTypeControl = gui.add( GUIParams, 'focussingType' ).name( focussingType2String() );
 	showSelfConjugatePlanesControl = gui.add( GUIParams, 'showSelfConjugatePlanes' ).name( showSelfConjugatePlanes2String() );
+
+	gui.add( GUIParams, 'sphereX', -.5, .5, 0.0001 ).name( "<i>x</i><sub>sphere centre</sub>" ).onChange( (x) => { raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.x = x } );
+	gui.add( GUIParams, 'sphereY', -.5, .5, 0.0001 ).name( "<i>y</i><sub>sphere centre</sub>" ).onChange( (y) => { raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.y = y } );
+	gui.add( GUIParams, 'sphereZ', -.5, .5, 0.0001 ).name( "<i>z</i><sub>sphere centre</sub>" ).onChange( (z) => { raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].centre.z = z } );
+	gui.add( GUIParams, 'sphereR', 0, 0.1, 0.0001 ).name( "<i>r</i><sub>sphere</sub>" ).onChange( (r) => { raytracingScene.sphereShapes[raytracingScene.sceneObjects[sphereIndex].shapeID.index].radius = r } );
+	showSphereControl = gui.add( GUIParams, 'showSphere' ).name( showSphere2String() );
 
 	// const folderVirtualCamera = gui.addFolder( 'Virtual camera' );
 	gui.add( GUIParams, 'Horiz. FOV (&deg;)', 1, 170, 1).onChange( setScreenFOV );
@@ -844,6 +838,9 @@ function showSelfConjugatePlanes2String() {
 	return 'Self-conjugate planes '+(showSelfConjugatePlanes?'shown':'hidden');
 }
 
+function showSphere2String() {
+	return 'Sphere '+(raytracingScene.sceneObjects[sphereIndex].visible?'shown':'hidden');
+}
 
 function guiMeshVisible2String() {
 	return 'VR controls '+(GUIMesh.visible?'visible':'hidden');

@@ -25,6 +25,19 @@ class RectangleShape {
 		this.span2 = Util.getPartPerpendicularTo1( span2, span1 );
 		this.nNormal = Util.getPartPerpendicularTo2( normal, this.span1, this.span2 ).normalize();
 	}
+
+	static getRectangleShape(
+		corner,
+		span1,	// span vector 1
+		span2	// span vector 2, needs to be perpendicular to span1
+	) {
+		return new RectangleShape(
+			corner,
+			span1,
+			span2,
+			span1.clone().cross(span2)
+		);
+	}
 }
 
 export { RectangleShape };
